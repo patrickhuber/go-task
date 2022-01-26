@@ -5,8 +5,8 @@ a unit of work library modeled off of the dotnet tpl
 
 go get it
 
-```bash
-go get github.com/patrickhuber/task
+```bash 
+go get github.com/patrickhuber/go-task
 ```
 
 execute a simple function 

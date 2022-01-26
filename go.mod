@@ -1,4 +1,4 @@
-module github.com/patrickhuber/task
+module github.com/patrickhuber/go-task
 
 go 1.17
 

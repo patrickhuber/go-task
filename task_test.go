@@ -7,7 +7,7 @@ import (
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
-	"github.com/patrickhuber/task"
+	"github.com/patrickhuber/go-task"
 )
 
 var _ = Describe("Task", func() {
