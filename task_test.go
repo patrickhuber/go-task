@@ -32,7 +32,8 @@ var _ = Describe("Task", func() {
 	It("can timeout", func() {
 		ctx, _ := context.WithTimeout(context.Background(), time.Millisecond)
 		t := task.Run(func(interface{}) (interface{}, error) {
-			<-time.After(time.Second * 10)
+			ch := make(chan struct{})
+			<-ch
 			return nil, nil
 		}, task.WithContext(ctx))
 		Expect(t.Wait()).ToNot(BeNil())
@@ -40,7 +41,8 @@ var _ = Describe("Task", func() {
 	It("can cancel", func() {
 		ctx, cancel := context.WithCancel(context.Background())
 		t := task.Run(func(interface{}) (interface{}, error) {
-			<-time.After(time.Second * 10)
+			ch := make(chan struct{})
+			<-ch
 			return nil, nil
 		}, task.WithContext(ctx))
 		cancel()
