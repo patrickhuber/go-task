@@ -1,5 +1,7 @@
 package task
 
+import "context"
+
 type whenAnyTask struct {
 	task
 	tasks []Observable
@@ -8,22 +10,30 @@ type whenAnyTask struct {
 // WhenAny sets up event notifications
 func WhenAny(tasks []Observable) Task {
 	return &whenAnyTask{
+		task: task{
+			doneCh:  make(chan struct{}, 1),
+			context: context.TODO(),
+		},
 		tasks: tasks,
 	}
 }
 
 func (t *whenAnyTask) OnNext(value interface{}) {
-	t.result = value
-	t.completed = true
-	t.resultChan <- value
+
 }
 
 func (t *whenAnyTask) OnCompleted() {
-	
+	t.MarkComplete()
 }
 
 func (t *whenAnyTask) OnError(err error) {
-	t.err = err
-	t.completed = true
-	t.errChan <- err
+}
+
+func (t *whenAnyTask) OnCanceled() {
+}
+
+func (t *whenAnyTask) MarkComplete() {
+	if !t.IsCompleted() {
+		t.doneCh <- struct{}{}
+	}
 }

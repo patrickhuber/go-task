@@ -1,3 +1,3 @@
 package task
 
-type DelegateFunc func() (interface{}, error)
+type DelegateFunc func(interface{}) (interface{}, error)

@@ -12,7 +12,7 @@ import (
 
 var _ = Describe("Task", func() {
 	It("can return error", func() {
-		t := task.Run(func() (interface{}, error) {
+		t := task.Run(func(interface{}) (interface{}, error) {
 			return nil, fmt.Errorf("this is an error")
 		})
 		err := t.Wait()
@@ -21,7 +21,7 @@ var _ = Describe("Task", func() {
 		Expect(result).To(BeNil())
 	})
 	It("can return result", func() {
-		t := task.Run(func() (interface{}, error) {
+		t := task.Run(func(interface{}) (interface{}, error) {
 			return 1, nil
 		})
 		err := t.Wait()
@@ -31,7 +31,7 @@ var _ = Describe("Task", func() {
 	})
 	It("can timeout", func() {
 		ctx, _ := context.WithTimeout(context.Background(), time.Millisecond)
-		t := task.Run(func() (interface{}, error) {
+		t := task.Run(func(interface{}) (interface{}, error) {
 			<-time.After(time.Second * 10)
 			return nil, nil
 		}, task.WithContext(ctx))
@@ -39,7 +39,7 @@ var _ = Describe("Task", func() {
 	})
 	It("can cancel", func() {
 		ctx, cancel := context.WithCancel(context.Background())
-		t := task.Run(func() (interface{}, error) {
+		t := task.Run(func(interface{}) (interface{}, error) {
 			<-time.After(time.Second * 10)
 			return nil, nil
 		}, task.WithContext(ctx))
