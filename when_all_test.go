@@ -22,7 +22,7 @@ var _ = Describe("WhenAll", func() {
 			tasks = append(tasks, t)
 		}
 
-		t := task.WhenAll(tasks)
+		t := task.WhenAll(tasks...)
 
 		for i := 0; i < itemCount; i++ {
 			Expect(scheduler.Dequeue()).To(BeTrue())
@@ -46,10 +46,19 @@ var _ = Describe("WhenAll", func() {
 			task.WithTimeout(time.Millisecond*10))
 
 		tasks := []task.ObservableTask{normal, cancel}
-		t := task.WhenAll(tasks)
+		t := task.WhenAll(tasks...)
 		for i := 0; i < len(tasks); i++ {
 			Expect(scheduler.Dequeue()).To(BeTrue())
 		}
 		Expect(t.Wait()).ToNot(BeNil())
+	})
+	It("returns immediately when no tasks", func() {
+		t := task.WhenAll()
+		Expect(t.Wait()).To(BeNil())
+	})
+	It("can process completed task", func() {
+		t := task.WhenAll(task.Completed())
+
+		Expect(t.Wait()).To(BeNil())
 	})
 })

@@ -64,6 +64,11 @@ var _ = Describe("Task", func() {
 			Expect(t.Error()).ToNot(BeNil())
 		})
 	})
-	Describe("WhenAll", func() {})
-	Describe("WhenAny", func() {})
+	Describe("Complete", func() {
+		It("is complete", func() {
+			t := task.Completed()
+			Expect(t.IsCompleted()).To(BeTrue())
+			Expect(t.Wait()).To(BeNil())
+		})
+	})
 })

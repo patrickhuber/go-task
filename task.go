@@ -81,6 +81,9 @@ func WithState(state interface{}) RunOption {
 }
 
 func (t *task) Execute() {
+	if t.IsCompleted() {
+		return
+	}
 	result, err := t.delegate(t.state)
 	if err != nil {
 		t.err = err
@@ -178,23 +181,32 @@ func (t *task) Subscribe(o Observer) io.Closer {
 	return newSubscription(o, t.observers)
 }
 
-func Completed() Task {
+func Completed() ObservableTask {
+	doneCh := make(chan struct{}, 1)
+	doneCh <- struct{}{}
 	return &task{
 		status: StatusSuccess,
+		doneCh: doneCh,
 	}
 }
 
-func FromResult(result interface{}) Task {
+func FromResult(result interface{}) ObservableTask {
+	doneCh := make(chan struct{}, 1)
+	doneCh <- struct{}{}
 	return &task{
 		result: result,
 		status: StatusSuccess,
+		doneCh: doneCh,
 	}
 }
 
-func FromError(err error) Task {
+func FromError(err error) ObservableTask {
+	doneCh := make(chan struct{}, 1)
+	doneCh <- struct{}{}
 	return &task{
 		err:    err,
 		status: StatusFaulted,
+		doneCh: doneCh,
 	}
 }
 
