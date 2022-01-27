@@ -54,21 +54,21 @@ err := t.Wait() // error contains context cancellation error
 
 when all tasks
 
-```
+```golang
 t := task.WhenAll(task.Completed(), task.FromResult(1))
 t.Wait()
 ```
 
 when any tasks
 
-```
+```golang
 t := task.WhenAll(task.Completed(), task.FromResult(1))
 t.Wait()
 ```
 
 aggregate errors
 
-```
+```golang
 tasks := []ObservableTask{
   task.FromError(fmt.Errorf("1")),
   task.FromError(fmt.Errorf("2")),
