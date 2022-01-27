@@ -69,4 +69,13 @@ t.Wait()
 aggregate errors
 
 ```
+tasks := []ObservableTask{
+  task.FromError(fmt.Errorf("1")),
+  task.FromError(fmt.Errorf("2")),
+  task.FromError(fmt.Errorf("3")),
+}
+t := task.WhenAll(tasks...)
+err := t.Wait()
+// prints 3
+fmt.Println(len(err.(task.AggregateError).Errors()))
 ```
