@@ -81,12 +81,12 @@ func (t *whenTask) OnCompleted() {
 		if tsk.IsFaulted() {
 			t.setStatus(StatusFaulted)
 			if tsk.Error() != nil {
-				t.err = AppendError(t.err, tsk.Error())
+				t.setError(AppendError(t.Error(), tsk.Error()))
 			}
 		} else if tsk.IsCanceled() {
 			t.setStatus(StatusCanceled)
 			if tsk.Error() != nil {
-				t.err = AppendError(t.err, tsk.Error())
+				t.setError(AppendError(t.Error(), tsk.Error()))
 			}
 		}
 	}
@@ -99,11 +99,11 @@ func (t *whenTask) OnCompleted() {
 
 	switch t.Status() {
 	case StatusCanceled:
-		t.NotifyCanceled(t.err)
+		t.NotifyCanceled(t.Error())
 	case StatusFaulted:
-		t.NotifyError(t.err)
+		t.NotifyError(t.Error())
 	case StatusSuccess:
-		t.NotifyNext(t.result)
+		t.NotifyNext(t.Result())
 	}
 
 	// notify that we are done

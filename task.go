@@ -89,11 +89,11 @@ func (t *task) Execute() {
 	}
 	result, err := t.errFuncWith(t.state)
 	if err != nil {
-		t.err = err
+		t.setError(err)
 		t.setStatus(StatusFaulted)
 		t.NotifyError(err)
 	} else {
-		t.result = result
+		t.setResult(result)
 		t.setStatus(StatusSuccess)
 		t.NotifyNext(result)
 	}
@@ -102,17 +102,18 @@ func (t *task) Execute() {
 
 func (t *task) Wait() error {
 	if t.IsCompleted() {
-		return t.err
+		return t.Error()
 	}
 
 	select {
 	case <-t.doneCh:
-		return t.err
+		return t.Error()
 	case <-t.context.Done():
-		t.err = t.context.Err()
+		err := t.context.Err()
+		t.setError(err)
 		t.setStatus(StatusCanceled)
-		t.NotifyCanceled(t.err)
-		return t.err
+		t.NotifyCanceled(err)
+		return err
 	}
 }
 
@@ -132,11 +133,27 @@ func (t *task) NotifyCanceled(err error) {
 }
 
 func (t *task) Result() interface{} {
+	t.mutex.Lock()
+	defer t.mutex.Unlock()
 	return t.result
 }
 
+func (t *task) setResult(result interface{}) {
+	t.mutex.Lock()
+	defer t.mutex.Unlock()
+	t.result = result
+}
+
 func (t *task) Error() error {
+	t.mutex.Lock()
+	defer t.mutex.Unlock()
 	return t.err
+}
+
+func (t *task) setError(err error) {
+	t.mutex.Lock()
+	defer t.mutex.Unlock()
+	t.err = err
 }
 
 func (t *task) IsCompleted() bool {
