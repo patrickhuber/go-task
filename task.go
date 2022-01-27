@@ -133,8 +133,8 @@ func (t *task) NotifyCanceled(err error) {
 }
 
 func (t *task) Result() interface{} {
-	t.mutex.Lock()
-	defer t.mutex.Unlock()
+	t.mutex.RLock()
+	defer t.mutex.RUnlock()
 	return t.result
 }
 
@@ -145,8 +145,8 @@ func (t *task) setResult(result interface{}) {
 }
 
 func (t *task) Error() error {
-	t.mutex.Lock()
-	defer t.mutex.Unlock()
+	t.mutex.RLock()
+	defer t.mutex.RUnlock()
 	return t.err
 }
 
@@ -165,12 +165,6 @@ func (t *task) IsCompleted() bool {
 	}
 }
 
-func (t *task) setStatus(status TaskStatus) {
-	t.mutex.Lock()
-	defer t.mutex.Unlock()
-	t.status = status
-}
-
 func (t *task) IsCanceled() bool {
 	return t.Status() == StatusCanceled
 }
@@ -180,9 +174,15 @@ func (t *task) IsFaulted() bool {
 }
 
 func (t *task) Status() TaskStatus {
+	t.mutex.RLock()
+	defer t.mutex.RUnlock()
+	return t.status
+}
+
+func (t *task) setStatus(status TaskStatus) {
 	t.mutex.Lock()
 	defer t.mutex.Unlock()
-	return t.status
+	t.status = status
 }
 
 func (t *task) Subscribe(o Observer) io.Closer {
