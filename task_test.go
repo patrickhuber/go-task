@@ -12,7 +12,7 @@ import (
 
 var _ = Describe("Task", func() {
 	It("can return error", func() {
-		t := task.RunErrFuncWith(func(interface{}) (interface{}, error) {
+		t := task.RunErrFunc(func() (interface{}, error) {
 			return nil, fmt.Errorf("this is an error")
 		})
 		err := t.Wait()
@@ -70,6 +70,24 @@ var _ = Describe("Task", func() {
 			t := task.Completed()
 			Expect(t.IsCompleted()).To(BeTrue())
 			Expect(t.Wait()).To(BeNil())
+		})
+	})
+	Describe("Action", func() {
+		It("can execute", func() {
+			t := task.RunAction(func() {})
+			Expect(t.Wait()).To(BeNil())
+			Expect(t.Result()).To(BeNil())
+		})
+	})
+	Describe("ActionWith", func() {
+		It("can pass state", func() {
+			expected := 1
+			t := task.RunActionWith(func(state interface{}) {
+				Expect(state).ToNot(BeNil())
+				Expect(state).To(Equal(expected))
+			}, task.WithState(expected))
+			Expect(t.Wait()).To(BeNil())
+			Expect(t.Result()).To(BeNil())
 		})
 	})
 })

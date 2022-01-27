@@ -11,7 +11,7 @@ func DefaultScheduler() Scheduler {
 	return &scheduler{}
 }
 
-func NewSchedulerer() Scheduler {
+func NewScheduler() Scheduler {
 	return &scheduler{}
 }
 

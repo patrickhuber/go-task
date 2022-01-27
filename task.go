@@ -226,6 +226,20 @@ func RunActionWith(actionWith ActionWith, options ...RunOption) ObservableTask {
 	return RunErrFuncWith(errFuncWith, options...)
 }
 
+func RunErrAction(errAction ErrAction, options ...RunOption) ObservableTask {
+	errFuncWith := func(interface{}) (interface{}, error) {
+		return nil, errAction()
+	}
+	return RunErrFuncWith(errFuncWith, options...)
+}
+
+func RunErrActionWith(errActionWith ErrActionWith, options ...RunOption) ObservableTask {
+	errFuncWith := func(state interface{}) (interface{}, error) {
+		return nil, errActionWith(state)
+	}
+	return RunErrFuncWith(errFuncWith, options...)
+}
+
 func RunFunc(f Func, options ...RunOption) ObservableTask {
 	errFuncWith := func(interface{}) (interface{}, error) {
 		return f(), nil

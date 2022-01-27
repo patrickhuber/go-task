@@ -1,6 +1,7 @@
 package task_test
 
 import (
+	"fmt"
 	"time"
 
 	. "github.com/onsi/ginkgo/v2"
@@ -59,5 +60,20 @@ var _ = Describe("WhenAll", func() {
 		t := task.WhenAll(task.Completed())
 
 		Expect(t.Wait()).To(BeNil())
+	})
+	It("returns aggregate errors", func() {
+		tasks := []task.ObservableTask{}
+		for i := 0; i < 3; i++ {
+			t := task.FromError(fmt.Errorf("error %d", i))
+			tasks = append(tasks, t)
+		}
+		t := task.WhenAll(tasks...)
+		err := t.Wait()
+		Expect(err).ToNot(BeNil())
+
+		aggregate, ok := err.(task.AggregateError)
+		Expect(ok).To(BeTrue())
+		Expect(aggregate).ToNot(BeNil())
+		Expect(len(aggregate.Errors())).To(Equal(3))
 	})
 })

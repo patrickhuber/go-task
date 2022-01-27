@@ -11,21 +11,33 @@ type aggregateError struct {
 type AggregateError interface {
 	error
 	Append(erors ...error)
+	Errors() []error
 }
 
 func AppendError(errors ...error) AggregateError {
+	filtered := []error{}
+	// filter out nil
+	for _, e := range errors {
+		if e == nil {
+			continue
+		}
+		filtered = append(filtered, e)
+	}
+	errors = filtered
+
 	if len(errors) == 0 {
 		return nil
 	}
-	if errors[0] == nil {
-		return &aggregateError{
-			errors: errors[1:],
-		}
-	}
+
+	// is the first error an aggregate error?
 	if a, ok := errors[0].(AggregateError); ok {
-		a.Append(errors[1:]...)
+		if len(errors) > 1 {
+			a.Append(errors[1:]...)
+		}
 		return a
 	}
+
+	// the first error is not an aggregate error, so create a new aggregate error and append all
 	a := &aggregateError{
 		errors: []error{},
 	}
@@ -45,9 +57,6 @@ func (err *aggregateError) Error() string {
 	return outStr
 }
 
-func (err *aggregateError) ErrOrNil() error {
-	if len(err.errors) == 0 {
-		return nil
-	}
-	return err
+func (err *aggregateError) Errors() []error {
+	return err.errors
 }
