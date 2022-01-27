@@ -7,6 +7,7 @@ type queueScheduler struct {
 type QueueScheduler interface {
 	Scheduler
 	Dequeue() bool
+	DequeueAll()
 }
 
 func NewQueueScheduler() QueueScheduler {
