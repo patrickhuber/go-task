@@ -31,7 +31,8 @@ var _ = Describe("Task", func() {
 		Expect(result).To(Equal(1))
 	})
 	It("can timeout", func() {
-		ctx, _ := context.WithTimeout(context.Background(), time.Millisecond)
+		ctx, cancel := context.WithTimeout(context.Background(), time.Millisecond)
+		defer cancel()
 		t := task.RunAction(func() {
 			ch := make(chan struct{})
 			<-ch
@@ -89,5 +90,85 @@ var _ = Describe("Task", func() {
 			Expect(t.Wait()).To(BeNil())
 			Expect(t.Result()).To(BeNil())
 		})
+	})
+	Describe("ErrAction", func() {
+		It("can return error", func() {
+			t := task.RunErrAction(func() error {
+				return fmt.Errorf("error")
+			})
+			Expect(t.Wait()).ToNot(BeNil())
+		})
+	})
+	Describe("ErrActionWith", func() {
+		It("can pass state", func() {
+			expected := 1
+			t := task.RunErrActionWith(func(state interface{}) error {
+				Expect(state).ToNot(BeNil())
+				Expect(state).To(Equal(expected))
+				return nil
+			}, task.WithState(expected))
+			Expect(t.Wait()).To(BeNil())
+		})
+		It("can return error", func() {
+			expected := 1
+			t := task.RunErrActionWith(func(state interface{}) error {
+				Expect(state).ToNot(BeNil())
+				Expect(state).To(Equal(expected))
+				return fmt.Errorf("error")
+			}, task.WithState(expected))
+			Expect(t.Wait()).ToNot(BeNil())
+		})
+	})
+	Describe("Func", func() {
+		It("can return value", func() {
+			t := task.RunFunc(func() interface{} {
+				return 1
+			})
+			Expect(t.Wait()).To(BeNil())
+			Expect(t.Result()).To(Equal(1))
+		})
+	})
+	Describe("FuncWith", func() {
+		It("can roundtrip value", func() {
+			t := task.RunFuncWith(func(state interface{}) interface{} {
+				return state
+			}, task.WithState(1))
+			Expect(t.Wait()).To(BeNil())
+			Expect(t.Result()).To(Equal(1))
+		})
+	})
+	Describe("ErrFunc", func() {
+		It("can return error", func() {
+			t := task.RunErrFunc(func() (interface{}, error) {
+				return nil, fmt.Errorf("error")
+			})
+			Expect(t.Wait()).ToNot(BeNil())
+			Expect(t.Result()).To(BeNil())
+		})
+		It("can return result", func() {
+			t := task.RunErrFunc(func() (interface{}, error) {
+				return 1, nil
+			})
+			Expect(t.Wait()).To(BeNil())
+			Expect(t.Result()).ToNot(BeNil())
+		})
+	})
+	Describe("ErrFuncWith", func() {
+		It("can return error", func() {
+			t := task.RunErrFuncWith(func(state interface{}) (interface{}, error) {
+				return nil, fmt.Errorf("error")
+			})
+			Expect(t.Wait()).ToNot(BeNil())
+			Expect(t.Result()).To(BeNil())
+		})
+		It("can roundtrip state", func() {
+			t := task.RunErrFuncWith(func(state interface{}) (interface{}, error) {
+				return state, nil
+			}, task.WithState(1))
+			Expect(t.Wait()).To(BeNil())
+			Expect(t.Result()).ToNot(BeNil())
+			Expect(t.Result()).To(Equal(1))
+		})
+
 	})
 })

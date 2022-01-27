@@ -3,6 +3,7 @@ package task
 import (
 	"context"
 	"io"
+	"sync"
 	"time"
 )
 
@@ -40,7 +41,8 @@ type task struct {
 	scheduler   Scheduler
 	errFuncWith ErrFuncWith
 	state       interface{}
-	observers   []Observer
+	tracker     Tracker
+	mutex       sync.RWMutex
 }
 
 func new(errFuncWith ErrFuncWith) *task {
@@ -49,6 +51,7 @@ func new(errFuncWith ErrFuncWith) *task {
 		status:      StatusCreated,
 		scheduler:   DefaultScheduler(),
 		errFuncWith: errFuncWith,
+		tracker:     NewTracker(),
 		// make this buffered to avoid blocking the calling routine
 		doneCh: make(chan struct{}, 1),
 	}
@@ -87,18 +90,17 @@ func (t *task) Execute() {
 	result, err := t.errFuncWith(t.state)
 	if err != nil {
 		t.err = err
-		t.status = StatusFaulted
+		t.setStatus(StatusFaulted)
 		t.NotifyError(err)
 	} else {
 		t.result = result
-		t.status = StatusSuccess
+		t.setStatus(StatusSuccess)
 		t.NotifyNext(result)
 	}
 	t.doneCh <- struct{}{}
 }
 
 func (t *task) Wait() error {
-	// result is cached? return it
 	if t.IsCompleted() {
 		return t.err
 	}
@@ -108,34 +110,25 @@ func (t *task) Wait() error {
 		return t.err
 	case <-t.context.Done():
 		t.err = t.context.Err()
-		t.status = StatusCanceled
+		t.setStatus(StatusCanceled)
 		t.NotifyCanceled(t.err)
 		return t.err
 	}
 }
 
 func (t *task) NotifyNext(value interface{}) {
-	for _, o := range t.observers {
-		o.OnNext(value)
-		// tasks are completed when they receive any message
-		o.OnCompleted()
-	}
+	t.tracker.NotifyNext(value)
+	t.tracker.NotifyCompleted()
 }
 
 func (t *task) NotifyError(err error) {
-	for _, o := range t.observers {
-		o.OnError(err)
-		// tasks are completed when they receive any message
-		o.OnCompleted()
-	}
+	t.tracker.NotifyError(err)
+	t.tracker.NotifyCompleted()
 }
 
 func (t *task) NotifyCanceled(err error) {
-	for _, o := range t.observers {
-		o.OnCanceled(err)
-		// tasks are completed when they receive any message
-		o.OnCompleted()
-	}
+	t.tracker.NotifyCanceled(err)
+	t.tracker.NotifyCompleted()
 }
 
 func (t *task) Result() interface{} {
@@ -147,7 +140,7 @@ func (t *task) Error() error {
 }
 
 func (t *task) IsCompleted() bool {
-	switch t.status {
+	switch t.Status() {
 	case StatusCanceled, StatusFaulted, StatusSuccess:
 		return true
 	default:
@@ -155,32 +148,35 @@ func (t *task) IsCompleted() bool {
 	}
 }
 
+func (t *task) setStatus(status TaskStatus) {
+	t.mutex.Lock()
+	defer t.mutex.Unlock()
+	t.status = status
+}
+
 func (t *task) IsCanceled() bool {
-	return t.status == StatusCanceled
+	return t.Status() == StatusCanceled
 }
 
 func (t *task) IsFaulted() bool {
-	return t.status == StatusFaulted
+	return t.Status() == StatusFaulted
 }
 
 func (t *task) Status() TaskStatus {
+	t.mutex.Lock()
+	defer t.mutex.Unlock()
 	return t.status
 }
 
 func (t *task) Subscribe(o Observer) io.Closer {
-	contains := false
-	for _, observer := range t.observers {
-		if o == observer {
-			contains = true
-			break
-		}
-	}
-	if !contains {
-		t.observers = append(t.observers, o)
-	}
-	return newSubscription(o, t.observers)
+	return t.tracker.Subscribe(o)
 }
 
+func (t *task) Unsubscribe(o Observer) {
+	t.tracker.Unsubscribe(o)
+}
+
+// Completed returns a completed task in the StatusSuccess state
 func Completed() ObservableTask {
 	doneCh := make(chan struct{}, 1)
 	doneCh <- struct{}{}
@@ -190,6 +186,7 @@ func Completed() ObservableTask {
 	}
 }
 
+// FromResult returns a completed task in the StatusSuccess state with the given result
 func FromResult(result interface{}) ObservableTask {
 	doneCh := make(chan struct{}, 1)
 	doneCh <- struct{}{}
@@ -200,6 +197,7 @@ func FromResult(result interface{}) ObservableTask {
 	}
 }
 
+// FromError returns a completed task in StatusFaulted state with the given error
 func FromError(err error) ObservableTask {
 	doneCh := make(chan struct{}, 1)
 	doneCh <- struct{}{}
@@ -210,6 +208,8 @@ func FromError(err error) ObservableTask {
 	}
 }
 
+// RunAction runs the given action function with the supplied RunOptions
+// An Action is a function with no arguments and no returns
 func RunAction(action Action, options ...RunOption) ObservableTask {
 	errFuncWith := func(interface{}) (interface{}, error) {
 		action()
@@ -218,6 +218,9 @@ func RunAction(action Action, options ...RunOption) ObservableTask {
 	return RunErrFuncWith(errFuncWith, options...)
 }
 
+// RunActionWith runs the given action function with the supplied RunOptions
+// An ActionWith is a function with one interface argument and no returns. The interface
+// argument can be supplied with task.WithState(state) in the options parameter list.
 func RunActionWith(actionWith ActionWith, options ...RunOption) ObservableTask {
 	errFuncWith := func(state interface{}) (interface{}, error) {
 		actionWith(state)

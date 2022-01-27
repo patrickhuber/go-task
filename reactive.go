@@ -11,43 +11,92 @@ type Observer interface {
 
 type Observable interface {
 	Subscribe(Observer) io.Closer
+	Unsubscribe(Observer)
 }
 
 type subscription struct {
-	observer  Observer
-	observers []Observer
+	observer   Observer
+	observable Observable
 }
 
-func newSubscription(observer Observer, observers []Observer) io.Closer {
+func NewSubscription(observer Observer, observable Observable) io.Closer {
 	return &subscription{
-		observer:  observer,
-		observers: observers,
+		observer:   observer,
+		observable: observable,
 	}
 }
 
 func (s *subscription) Close() error {
-	s.remove(s.observer)
+	s.observable.Unsubscribe(s.observer)
 	return nil
 }
 
-func (s *subscription) remove(observer Observer) {
-	if observer == nil {
-		return
+type tracker struct {
+	observers []Observer
+}
+
+type Tracker interface {
+	Observable
+	NotifyError(error)
+	NotifyNext(interface{})
+	NotifyCompleted()
+	NotifyCanceled(error)
+}
+
+func NewTracker() Tracker {
+	return &tracker{
+		observers: []Observer{},
 	}
-	index := s.index(observer)
+}
+
+func (t *tracker) Subscribe(observer Observer) io.Closer {
+	contains := t.indexOf(observer) >= 0
+	if !contains {
+		t.observers = append(t.observers, observer)
+	}
+	return NewSubscription(observer, t)
+}
+
+func (t *tracker) Unsubscribe(observer Observer) {
+	index := t.indexOf(observer)
 	if index < 0 {
 		return
 	}
-	s.observers[index] = s.observers[len(s.observers)-1]
-	s.observers[len(s.observers)-1] = nil
-	s.observers = s.observers[:len(s.observers)-1]
+	t.observers[index] = t.observers[len(t.observers)-1]
+	t.observers[len(t.observers)-1] = nil
+	t.observers = t.observers[:len(t.observers)-1]
 }
 
-func (s *subscription) index(observer Observer) int {
-	for i, o := range s.observers {
+func (t *tracker) indexOf(observer Observer) int {
+	index := -1
+	for i, o := range t.observers {
 		if o == observer {
-			return i
+			index = i
 		}
 	}
-	return -1
+	return index
+}
+
+func (t *tracker) NotifyError(err error) {
+	for _, o := range t.observers {
+		o.OnError(err)
+	}
+}
+
+func (t *tracker) NotifyNext(next interface{}) {
+	for _, o := range t.observers {
+		o.OnNext(next)
+	}
+}
+
+func (t *tracker) NotifyCompleted() {
+	for _, o := range t.observers {
+		o.OnCompleted()
+	}
+}
+
+func (t *tracker) NotifyCanceled(err error) {
+	for _, o := range t.observers {
+		o.OnCanceled(err)
+	}
 }

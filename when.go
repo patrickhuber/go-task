@@ -31,6 +31,7 @@ func When(limit int, tasks ...ObservableTask) ObservableTask {
 		tasks:     tasks,
 		remaining: int32(limit),
 		task: task{
+			tracker: NewTracker(),
 			context: context.TODO(),
 			// use a buffered channel to avoid blocking caller
 			doneCh: make(chan struct{}, 1),
@@ -70,7 +71,7 @@ func (t *whenTask) OnCompleted() {
 	}
 
 	// start in a success state
-	t.status = StatusSuccess
+	t.setStatus(StatusSuccess)
 
 	// the remaining tasks are complete, process them
 	// for WhenAll this is all tasks
@@ -78,12 +79,12 @@ func (t *whenTask) OnCompleted() {
 	for i := 0; i < len(t.tasks); i++ {
 		tsk := t.tasks[i]
 		if tsk.IsFaulted() {
-			t.status = StatusFaulted
+			t.setStatus(StatusFaulted)
 			if tsk.Error() != nil {
 				t.err = AppendError(t.err, tsk.Error())
 			}
 		} else if tsk.IsCanceled() {
-			t.status = StatusCanceled
+			t.setStatus(StatusCanceled)
 			if tsk.Error() != nil {
 				t.err = AppendError(t.err, tsk.Error())
 			}
@@ -96,7 +97,7 @@ func (t *whenTask) OnCompleted() {
 	}
 	t.subscriptions = nil
 
-	switch t.status {
+	switch t.Status() {
 	case StatusCanceled:
 		t.NotifyCanceled(t.err)
 	case StatusFaulted:

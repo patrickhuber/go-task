@@ -2,7 +2,7 @@
 
 a unit of work library modeled off of the dotnet tpl
 
-## usage
+## install
 
 go get it
 
@@ -10,7 +10,9 @@ go get it
 go get github.com/patrickhuber/go-task
 ```
 
-execute a simple function 
+## usage
+
+### execute a simple function 
 
 ```golang
 t := task.RunFunc(func() interface{} {
@@ -19,7 +21,17 @@ t := task.RunFunc(func() interface{} {
 t.Wait()
 ```
 
-passing in data
+using goroutines
+
+```golang
+intChan := make(chan int)
+go func(){
+  intChan <- 1
+}()
+<- intChan
+```
+
+### passing in data
 
 ```golang
 t := task.RunWith(func(state interface{}){
@@ -29,7 +41,7 @@ t := task.RunWith(func(state interface{}){
 t.Wait()
 ```
 
-timeout a task
+### timeout a task
 
 ```golang
 ctx, _ := context.WithTimeout(context.Background(), time.Millisecond)
@@ -40,7 +52,7 @@ t := task.RunAction(func(){
 t.Wait()
 ```
 
-cancel a task
+### cancel a task
 
 ```golang
 ctx, cancel := context.WithCancel(context.Background())
@@ -52,30 +64,47 @@ cancel()
 err := t.Wait() // error contains context cancellation error
 ```
 
-when all tasks
+### when all tasks
 
 ```golang
 t := task.WhenAll(task.Completed(), task.FromResult(1))
 t.Wait()
 ```
 
-when any tasks
+### when any tasks
 
 ```golang
 t := task.WhenAll(task.Completed(), task.FromResult(1))
 t.Wait()
 ```
 
-aggregate errors
+### aggregate errors
 
 ```golang
-tasks := []ObservableTask{
-  task.FromError(fmt.Errorf("1")),
-  task.FromError(fmt.Errorf("2")),
-  task.FromError(fmt.Errorf("3")),
+tasks := []task.ObservableTask{}
+for i := 0; i < 3; i++{
+  task.FromError(fmt.Errorf("%d",d))
 }
-t := task.WhenAll(tasks...)
-err := t.Wait()
+err := task.WhenAll(tasks).Wait()
+
 // prints 3
 fmt.Println(len(err.(task.AggregateError).Errors()))
+```
+
+```golang
+var errorChans := [3]chan error
+for i, errChan := range errorChans{
+  errChan = make(chan error)
+  go func(i int){
+    errChan <- fmt.Errorf("%d", i)
+  }(i)
+}
+
+errors := []error{}
+for _, errChan := range errorChans{
+  err := <- errChan
+  errors = append(errors, err)
+}
+// prints 3
+fmt.Println(len(errors))
 ```
