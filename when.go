@@ -41,7 +41,6 @@ func When(limit int, tasks ...ObservableTask) ObservableTask {
 	for _, t := range tasks {
 
 		// bypass the subscription if the task is completed
-		// is there a race condition when tasks are scheduled immediately?
 		if t.IsCompleted() {
 			when.OnCompleted()
 			continue
