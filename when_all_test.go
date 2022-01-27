@@ -14,9 +14,9 @@ var _ = Describe("WhenAll", func() {
 		tasks := []task.ObservableTask{}
 		scheduler := task.NewQueueScheduler()
 		for i := 0; i < itemCount; i++ {
-			t := task.Run(func(state interface{}) (interface{}, error) {
+			t := task.RunFuncWith(func(state interface{}) interface{} {
 				i := state.(int)
-				return i, nil
+				return i
 			}, task.WithScheduler(scheduler),
 				task.WithState(i))
 			tasks = append(tasks, t)
@@ -32,16 +32,15 @@ var _ = Describe("WhenAll", func() {
 	It("returns cancel err when one task is canceled", func() {
 
 		scheduler := task.NewQueueScheduler()
-		normal := task.Run(func(state interface{}) (interface{}, error) {
+		normal := task.RunFuncWith(func(state interface{}) interface{} {
 			i := state.(int)
-			return i, nil
+			return i
 		}, task.WithScheduler(scheduler),
 			task.WithState(10))
 
-		cancel := task.Run(func(interface{}) (interface{}, error) {
+		cancel := task.RunAction(func() {
 			ch := make(chan struct{})
 			<-ch
-			return 10, nil
 		}, task.WithScheduler(scheduler),
 			task.WithTimeout(time.Millisecond*10))
 

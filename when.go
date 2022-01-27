@@ -13,6 +13,16 @@ type whenTask struct {
 	subscriptions []io.Closer
 }
 
+// WhenAny creates a task that completes when any task in the list completes
+func WhenAny(tasks ...ObservableTask) ObservableTask {
+	return When(1, tasks...)
+}
+
+// WhenAll creates a task that completes when all tasks in the list complete
+func WhenAll(tasks ...ObservableTask) ObservableTask {
+	return When(len(tasks), tasks...)
+}
+
 func When(limit int, tasks ...ObservableTask) ObservableTask {
 	if len(tasks) == 0 {
 		return Completed()
@@ -62,7 +72,9 @@ func (t *whenTask) OnCompleted() {
 	// start in a success state
 	t.status = StatusSuccess
 
-	// all tasks are completed, process them
+	// the remaining tasks are complete, process them
+	// for WhenAll this is all tasks
+	// for WhenAny this is any completed task
 	for i := 0; i < len(t.tasks); i++ {
 		tsk := t.tasks[i]
 		if tsk.IsFaulted() {

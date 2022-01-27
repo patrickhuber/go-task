@@ -32,23 +32,23 @@ type ObservableTask interface {
 }
 
 type task struct {
-	status    TaskStatus
-	result    interface{}
-	err       error
-	doneCh    chan struct{}
-	context   context.Context
-	scheduler Scheduler
-	delegate  DelegateFunc
-	state     interface{}
-	observers []Observer
+	status      TaskStatus
+	result      interface{}
+	err         error
+	doneCh      chan struct{}
+	context     context.Context
+	scheduler   Scheduler
+	errFuncWith ErrFuncWith
+	state       interface{}
+	observers   []Observer
 }
 
-func new(delegate DelegateFunc) *task {
+func new(errFuncWith ErrFuncWith) *task {
 	return &task{
-		context:   context.TODO(),
-		status:    StatusCreated,
-		scheduler: DefaultScheduler(),
-		delegate:  delegate,
+		context:     context.TODO(),
+		status:      StatusCreated,
+		scheduler:   DefaultScheduler(),
+		errFuncWith: errFuncWith,
 		// make this buffered to avoid blocking the calling routine
 		doneCh: make(chan struct{}, 1),
 	}
@@ -84,7 +84,7 @@ func (t *task) Execute() {
 	if t.IsCompleted() {
 		return
 	}
-	result, err := t.delegate(t.state)
+	result, err := t.errFuncWith(t.state)
 	if err != nil {
 		t.err = err
 		t.status = StatusFaulted
@@ -210,9 +210,46 @@ func FromError(err error) ObservableTask {
 	}
 }
 
-func Run(delegate DelegateFunc, options ...RunOption) ObservableTask {
+func RunAction(action Action, options ...RunOption) ObservableTask {
+	errFuncWith := func(interface{}) (interface{}, error) {
+		action()
+		return nil, nil
+	}
+	return RunErrFuncWith(errFuncWith, options...)
+}
+
+func RunActionWith(actionWith ActionWith, options ...RunOption) ObservableTask {
+	errFuncWith := func(state interface{}) (interface{}, error) {
+		actionWith(state)
+		return nil, nil
+	}
+	return RunErrFuncWith(errFuncWith, options...)
+}
+
+func RunFunc(f Func, options ...RunOption) ObservableTask {
+	errFuncWith := func(interface{}) (interface{}, error) {
+		return f(), nil
+	}
+	return RunErrFuncWith(errFuncWith, options...)
+}
+
+func RunFuncWith(funcWith FuncWith, options ...RunOption) ObservableTask {
+	errFuncWith := func(state interface{}) (interface{}, error) {
+		return funcWith(state), nil
+	}
+	return RunErrFuncWith(errFuncWith, options...)
+}
+
+func RunErrFunc(f ErrFunc, options ...RunOption) ObservableTask {
+	errFuncWith := func(interface{}) (interface{}, error) {
+		return f()
+	}
+	return RunErrFuncWith(errFuncWith, options...)
+}
+
+func RunErrFuncWith(errFuncWith ErrFuncWith, options ...RunOption) ObservableTask {
 	// create the task
-	t := new(delegate)
+	t := new(errFuncWith)
 
 	// apply operations
 	for _, opt := range options {

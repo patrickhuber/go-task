@@ -12,7 +12,7 @@ import (
 
 var _ = Describe("Task", func() {
 	It("can return error", func() {
-		t := task.Run(func(interface{}) (interface{}, error) {
+		t := task.RunErrFuncWith(func(interface{}) (interface{}, error) {
 			return nil, fmt.Errorf("this is an error")
 		})
 		err := t.Wait()
@@ -21,29 +21,28 @@ var _ = Describe("Task", func() {
 		Expect(result).To(BeNil())
 	})
 	It("can return result", func() {
-		t := task.Run(func(interface{}) (interface{}, error) {
-			return 1, nil
+		t := task.RunFunc(func() interface{} {
+			return 1
 		})
 		err := t.Wait()
 		Expect(err).To(BeNil())
 		result := t.Result()
 		Expect(result).ToNot(BeNil())
+		Expect(result).To(Equal(1))
 	})
 	It("can timeout", func() {
 		ctx, _ := context.WithTimeout(context.Background(), time.Millisecond)
-		t := task.Run(func(interface{}) (interface{}, error) {
+		t := task.RunAction(func() {
 			ch := make(chan struct{})
 			<-ch
-			return nil, nil
 		}, task.WithContext(ctx))
 		Expect(t.Wait()).ToNot(BeNil())
 	})
 	It("can cancel", func() {
 		ctx, cancel := context.WithCancel(context.Background())
-		t := task.Run(func(interface{}) (interface{}, error) {
+		t := task.RunAction(func() {
 			ch := make(chan struct{})
 			<-ch
-			return nil, nil
 		}, task.WithContext(ctx))
 		cancel()
 		Expect(t.Wait()).ToNot(BeNil())

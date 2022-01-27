@@ -9,7 +9,7 @@ import (
 var _ = Describe("WhenAny", func() {
 	It("waits until one task completes", func() {
 		scheduler := task.NewQueueScheduler()
-		blocking := task.Run(func(i interface{}) (interface{}, error) {
+		blocking := task.RunErrFuncWith(func(i interface{}) (interface{}, error) {
 			ch := make(chan struct{})
 			<-ch
 			return nil, nil
