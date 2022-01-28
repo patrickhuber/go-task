@@ -16,10 +16,15 @@ const (
 	StatusCanceled TaskStatus = "canceled"
 )
 
+// Task represents a unit of work.
 type Task interface {
+	// Execute executes the task. This is called by the scheduler to start the task.
 	Execute()
+	// Wait will return immediately if the task is complete. It will block if the task is running.
 	Wait() error
+	// Result returns the result. It will not block and will return immediately.
 	Result() interface{}
+	// Error returns the error It will not block and will return immediately.
 	Error() error
 	IsCompleted() bool
 	IsFaulted() bool
@@ -42,7 +47,7 @@ type task struct {
 	errFuncWith ErrFuncWith
 	state       interface{}
 	tracker     Tracker
-	mutex       sync.RWMutex
+	mutex       sync.RWMutex // currently this is a shared mutex for all state, switch to individual?
 }
 
 func new(errFuncWith ErrFuncWith) *task {
@@ -84,10 +89,18 @@ func WithState(state interface{}) RunOption {
 }
 
 func (t *task) Execute() {
+	// cache execution
 	if t.IsCompleted() {
 		return
 	}
+
+	// cleanup the channel after execution completes
+	defer close(t.doneCh)
+
+	// execute the delegate
 	result, err := t.errFuncWith(t.state)
+
+	// notify subscribers
 	if err != nil {
 		t.setError(err)
 		t.setStatus(StatusFaulted)
@@ -101,10 +114,12 @@ func (t *task) Execute() {
 }
 
 func (t *task) Wait() error {
+	// cache execution
 	if t.IsCompleted() {
 		return t.Error()
 	}
 
+	// this allows for the task to be canceled. The main work is done in execute.
 	select {
 	case <-t.doneCh:
 		return t.Error()
@@ -223,6 +238,13 @@ func FromError(err error) ObservableTask {
 		status: StatusFaulted,
 		doneCh: doneCh,
 	}
+}
+
+// Delay calls time.Sleep with the given duration
+func Delay(duration time.Duration, options ...RunOption) ObservableTask {
+	return RunAction(func() {
+		time.Sleep(duration)
+	}, options...)
 }
 
 // RunAction runs the given action function with the supplied RunOptions
