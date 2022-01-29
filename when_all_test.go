@@ -41,15 +41,13 @@ var _ = Describe("WhenAll", func() {
 
 		cancel := task.RunAction(func() {
 			ch := make(chan struct{})
+			defer close(ch)
 			<-ch
 		}, task.WithScheduler(scheduler),
 			task.WithTimeout(time.Millisecond*10))
 
-		tasks := []task.ObservableTask{normal, cancel}
-		t := task.WhenAll(tasks...)
-		for i := 0; i < len(tasks); i++ {
-			Expect(scheduler.Dequeue()).To(BeTrue())
-		}
+		t := task.WhenAll(normal, cancel)
+		scheduler.DequeueAll()
 		Expect(t.Wait()).ToNot(BeNil())
 	})
 	It("returns immediately when no tasks", func() {

@@ -2,6 +2,7 @@ package task
 
 import (
 	"io"
+	"sync"
 )
 
 type Observer interface {
@@ -35,10 +36,12 @@ func (s *subscription) Close() error {
 
 type tracker struct {
 	observers []Observer
+	mut       sync.RWMutex
 }
 
 type Tracker interface {
 	Observable
+	io.Closer
 	NotifyError(error)
 	NotifyNext(interface{})
 	NotifyCompleted()
@@ -54,7 +57,9 @@ func NewTracker() Tracker {
 func (t *tracker) Subscribe(observer Observer) io.Closer {
 	contains := t.indexOf(observer) >= 0
 	if !contains {
+		t.mut.Lock()
 		t.observers = append(t.observers, observer)
+		t.mut.Unlock()
 	}
 	return NewSubscription(observer, t)
 }
@@ -65,12 +70,16 @@ func (t *tracker) Unsubscribe(observer Observer) {
 		return
 	}
 
+	t.mut.Lock()
+	defer t.mut.Unlock()
 	t.observers[index] = t.observers[len(t.observers)-1]
 	t.observers[len(t.observers)-1] = nil
 	t.observers = t.observers[:len(t.observers)-1]
 }
 
 func (t *tracker) indexOf(observer Observer) int {
+	t.mut.RLock()
+	defer t.mut.RUnlock()
 	index := -1
 	for i, o := range t.observers {
 		if o == observer {
@@ -81,25 +90,40 @@ func (t *tracker) indexOf(observer Observer) int {
 }
 
 func (t *tracker) NotifyError(err error) {
+	t.mut.RLock()
+	defer t.mut.RUnlock()
 	for _, o := range t.observers {
 		o.OnError(err)
 	}
 }
 
 func (t *tracker) NotifyNext(next interface{}) {
+	t.mut.RLock()
+	defer t.mut.RUnlock()
 	for _, o := range t.observers {
 		o.OnNext(next)
 	}
 }
 
 func (t *tracker) NotifyCompleted() {
+	t.mut.RLock()
+	defer t.mut.RUnlock()
 	for _, o := range t.observers {
 		o.OnCompleted()
 	}
 }
 
 func (t *tracker) NotifyCanceled(err error) {
+	t.mut.RLock()
+	defer t.mut.RUnlock()
 	for _, o := range t.observers {
 		o.OnCanceled(err)
 	}
+}
+
+func (t *tracker) Close() error {
+	t.mut.Lock()
+	defer t.mut.Unlock()
+	t.observers = nil
+	return nil
 }

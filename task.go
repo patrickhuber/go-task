@@ -60,17 +60,17 @@ type ObservableTask interface {
 }
 
 type task struct {
-	status        TaskStatus
-	result        interface{}
-	err           error
-	doneCh        chan struct{}
-	context       context.Context
-	scheduler     Scheduler
-	errFuncWith   ErrFuncWith
-	state         interface{}
-	tracker       Tracker
-	subscriptions []io.Closer
-	mutex         sync.RWMutex // currently this is a shared mutex for all state, switch to individual?
+	executeOnce sync.Once
+	status      TaskStatus
+	result      interface{}
+	err         error
+	doneCh      chan struct{}
+	context     context.Context
+	scheduler   Scheduler
+	errFuncWith ErrFuncWith
+	state       interface{}
+	tracker     Tracker
+	mutex       sync.RWMutex // currently this is a shared mutex for all state, switch to individual?
 }
 
 func new(errFuncWith ErrFuncWith) *task {
@@ -112,7 +112,11 @@ func WithState(state interface{}) RunOption {
 }
 
 func (t *task) Execute() {
-	// cache execution
+	t.executeOnce.Do(t.execute)
+}
+
+func (t *task) execute() {
+	// if this task is already complete, return
 	if t.IsCompleted() {
 		return
 	}
@@ -127,17 +131,17 @@ func (t *task) Execute() {
 	if err != nil {
 		t.setError(err)
 		t.setStatus(StatusFaulted)
-		t.NotifyError(err)
+		t.notifyError(err)
 	} else {
 		t.setResult(result)
 		t.setStatus(StatusSuccess)
-		t.NotifyNext(result)
+		t.notifyNext(result)
 	}
 	t.doneCh <- struct{}{}
 }
 
 func (t *task) Wait() error {
-	// cache execution
+	// after completion, return the error code
 	if t.IsCompleted() {
 		return t.Error()
 	}
@@ -151,22 +155,22 @@ func (t *task) Wait() error {
 		err := t.context.Err()
 		t.setError(err)
 		t.setStatus(StatusCanceled)
-		t.NotifyCanceled(err)
+		t.notifyCanceled(err)
 		return err
 	}
 }
 
-func (t *task) NotifyNext(value interface{}) {
+func (t *task) notifyNext(value interface{}) {
 	t.tracker.NotifyNext(value)
 	t.tracker.NotifyCompleted()
 }
 
-func (t *task) NotifyError(err error) {
+func (t *task) notifyError(err error) {
 	t.tracker.NotifyError(err)
 	t.tracker.NotifyCompleted()
 }
 
-func (t *task) NotifyCanceled(err error) {
+func (t *task) notifyCanceled(err error) {
 	t.tracker.NotifyCanceled(err)
 	t.tracker.NotifyCompleted()
 }
@@ -224,10 +228,12 @@ func (t *task) setStatus(status TaskStatus) {
 	t.status = status
 }
 
+// Subscribe allows the observer to listen for update to the current task
 func (t *task) Subscribe(o Observer) io.Closer {
 	return t.tracker.Subscribe(o)
 }
 
+// Unsubscribe allows the oberver to disconnect from updates to the current task
 func (t *task) Unsubscribe(o Observer) {
 	t.tracker.Unsubscribe(o)
 }
@@ -243,11 +249,7 @@ func (t *task) OnCanceled(err error) {
 }
 
 func (t *task) OnCompleted() {
-	// clear all subscriptions
-	for _, s := range t.subscriptions {
-		s.Close()
-	}
-	t.subscriptions = nil
+	t.tracker.Close()
 
 	// schedule this task irrespective of its status
 	// we want the delegates with task parameters to handle the errors
@@ -309,9 +311,20 @@ func (t *task) ContinueErrFuncWith(continueErrFuncWith ContinueErrFuncWith) Obse
 	errFuncWith := func(state interface{}) (interface{}, error) {
 		return continueErrFuncWith(t, state)
 	}
-	tsk := new(errFuncWith)
-	tsk.context = t.context
-	tsk.scheduler = t.scheduler
-	t.subscriptions = append(t.subscriptions, t.Subscribe(tsk))
-	return tsk
+	continuation := new(errFuncWith)
+	if t.context != nil {
+		continuation.context = t.context
+	}
+	if t.scheduler != nil {
+		continuation.scheduler = t.scheduler
+	}
+
+	// if the current task is already complete, immediately schedule the continuation
+	// otherwise setup a subscription
+	if t.IsCompleted() {
+		continuation.scheduler.Queue(continuation)
+	} else {
+		t.Subscribe(continuation)
+	}
+	return continuation
 }

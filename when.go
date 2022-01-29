@@ -44,8 +44,7 @@ func when(limit int, tasks ...ObservableTask) ObservableTask {
 			when.OnCompleted()
 			continue
 		}
-		subscription := t.Subscribe(when)
-		when.subscriptions = append(when.subscriptions, subscription)
+		t.Subscribe(when)
 	}
 
 	return when
@@ -90,18 +89,15 @@ func (t *whenTask) OnCompleted() {
 	}
 
 	// clear all subscriptions
-	for _, s := range t.subscriptions {
-		s.Close()
-	}
-	t.subscriptions = nil
+	defer t.tracker.Close()
 
 	switch t.Status() {
 	case StatusCanceled:
-		t.NotifyCanceled(t.Error())
+		t.notifyCanceled(t.Error())
 	case StatusFaulted:
-		t.NotifyError(t.Error())
+		t.notifyError(t.Error())
 	case StatusSuccess:
-		t.NotifyNext(t.Result())
+		t.notifyNext(t.Result())
 	}
 
 	// notify that we are done

@@ -4,6 +4,7 @@ package task
 func Completed() ObservableTask {
 	doneCh := make(chan struct{}, 1)
 	doneCh <- struct{}{}
+	close(doneCh)
 	return &task{
 		status: StatusSuccess,
 		doneCh: doneCh,
@@ -14,6 +15,7 @@ func Completed() ObservableTask {
 func FromResult(result interface{}) ObservableTask {
 	doneCh := make(chan struct{}, 1)
 	doneCh <- struct{}{}
+	close(doneCh)
 	return &task{
 		result: result,
 		status: StatusSuccess,
@@ -25,6 +27,7 @@ func FromResult(result interface{}) ObservableTask {
 func FromError(err error) ObservableTask {
 	doneCh := make(chan struct{}, 1)
 	doneCh <- struct{}{}
+	close(doneCh)
 	return &task{
 		err:    err,
 		status: StatusFaulted,

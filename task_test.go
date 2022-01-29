@@ -35,6 +35,7 @@ var _ = Describe("Task", func() {
 		defer cancel()
 		t := task.RunAction(func() {
 			ch := make(chan struct{})
+			defer close(ch)
 			<-ch
 		}, task.WithContext(ctx))
 		Expect(t.Wait()).ToNot(BeNil())
