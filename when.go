@@ -2,15 +2,13 @@ package task
 
 import (
 	"context"
-	"io"
 	"sync/atomic"
 )
 
 type whenTask struct {
 	task
-	tasks         []ObservableTask
-	remaining     int32
-	subscriptions []io.Closer
+	tasks     []ObservableTask
+	remaining int32
 }
 
 // WhenAny creates a task that completes when any task in the list completes

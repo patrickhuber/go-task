@@ -1,6 +1,8 @@
 package task
 
-import "io"
+import (
+	"io"
+)
 
 type Observer interface {
 	OnNext(interface{})
@@ -62,6 +64,7 @@ func (t *tracker) Unsubscribe(observer Observer) {
 	if index < 0 {
 		return
 	}
+
 	t.observers[index] = t.observers[len(t.observers)-1]
 	t.observers[len(t.observers)-1] = nil
 	t.observers = t.observers[:len(t.observers)-1]

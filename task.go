@@ -45,7 +45,13 @@ type ContinueErrFuncWith func(Task, interface{}) (interface{}, error)
 
 type Continuation interface {
 	ContinueAction(ContinueAction) ObservableTask
+	ContinueActionWith(ContinueActionWith) ObservableTask
+	ContinueErrActionWith(ContinueErrActionWith) ObservableTask
 	ContinueErrAction(ContinueErrAction) ObservableTask
+	ContinueFunc(ContinueFunc) ObservableTask
+	ContinueFuncWith(ContinueFuncWith) ObservableTask
+	ContinueErrFunc(ContinueErrFunc) ObservableTask
+	ContinueErrFuncWith(ContinueErrFuncWith) ObservableTask
 }
 
 type ObservableTask interface {
@@ -54,16 +60,17 @@ type ObservableTask interface {
 }
 
 type task struct {
-	status      TaskStatus
-	result      interface{}
-	err         error
-	doneCh      chan struct{}
-	context     context.Context
-	scheduler   Scheduler
-	errFuncWith ErrFuncWith
-	state       interface{}
-	tracker     Tracker
-	mutex       sync.RWMutex // currently this is a shared mutex for all state, switch to individual?
+	status        TaskStatus
+	result        interface{}
+	err           error
+	doneCh        chan struct{}
+	context       context.Context
+	scheduler     Scheduler
+	errFuncWith   ErrFuncWith
+	state         interface{}
+	tracker       Tracker
+	subscriptions []io.Closer
+	mutex         sync.RWMutex // currently this is a shared mutex for all state, switch to individual?
 }
 
 func new(errFuncWith ErrFuncWith) *task {
@@ -235,6 +242,12 @@ func (t *task) OnCanceled(err error) {
 }
 
 func (t *task) OnCompleted() {
+	// clear all subscriptions
+	for _, s := range t.subscriptions {
+		s.Close()
+	}
+	t.subscriptions = nil
+
 	// schedule this task irrespective of its status
 	// we want the delegates with task parameters to handle the errors
 	t.scheduler.Queue(t)
@@ -243,6 +256,14 @@ func (t *task) OnCompleted() {
 func (t *task) ContinueAction(continueAction ContinueAction) ObservableTask {
 	f := func(t Task, state interface{}) (interface{}, error) {
 		continueAction(t)
+		return nil, nil
+	}
+	return t.ContinueErrFuncWith(f)
+}
+
+func (t *task) ContinueActionWith(continueActionWith ContinueActionWith) ObservableTask {
+	f := func(t Task, state interface{}) (interface{}, error) {
+		continueActionWith(t, state)
 		return nil, nil
 	}
 	return t.ContinueErrFuncWith(f)
@@ -262,6 +283,20 @@ func (t *task) ContinueErrActionWith(continueErrActionWith ContinueErrActionWith
 	return t.ContinueErrFuncWith(f)
 }
 
+func (t *task) ContinueFunc(continueFunc ContinueFunc) ObservableTask {
+	f := func(t Task, state interface{}) (interface{}, error) {
+		return continueFunc(t), nil
+	}
+	return t.ContinueErrFuncWith(f)
+}
+
+func (t *task) ContinueFuncWith(continueFuncWith ContinueFuncWith) ObservableTask {
+	f := func(t Task, state interface{}) (interface{}, error) {
+		return continueFuncWith(t, state), nil
+	}
+	return t.ContinueErrFuncWith(f)
+}
+
 func (t *task) ContinueErrFunc(continueErrFunc ContinueErrFunc) ObservableTask {
 	f := func(t Task, state interface{}) (interface{}, error) {
 		return continueErrFunc(t)
@@ -269,16 +304,13 @@ func (t *task) ContinueErrFunc(continueErrFunc ContinueErrFunc) ObservableTask {
 	return t.ContinueErrFuncWith(f)
 }
 
-func (t *task) ContinueErrFuncWith(continueErrFuncWith ContinueErrFuncWith, options ...RunOption) ObservableTask {
+func (t *task) ContinueErrFuncWith(continueErrFuncWith ContinueErrFuncWith) ObservableTask {
 	errFuncWith := func(state interface{}) (interface{}, error) {
 		return continueErrFuncWith(t, state)
 	}
 	tsk := new(errFuncWith)
 	tsk.context = t.context
 	tsk.scheduler = t.scheduler
-	for _, option := range options {
-		option(tsk)
-	}
-	t.Subscribe(tsk)
+	t.subscriptions = append(t.subscriptions, t.Subscribe(tsk))
 	return tsk
 }
