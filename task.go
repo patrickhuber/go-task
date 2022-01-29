@@ -30,6 +30,22 @@ type Task interface {
 	IsFaulted() bool
 	IsCanceled() bool
 	Status() TaskStatus
+
+	Continuation
+}
+
+type ContinueAction func(Task)
+type ContinueActionWith func(Task, interface{})
+type ContinueErrAction func(Task) error
+type ContinueErrActionWith func(Task, interface{}) error
+type ContinueFunc func(Task) interface{}
+type ContinueFuncWith func(Task, interface{}) interface{}
+type ContinueErrFunc func(Task) (interface{}, error)
+type ContinueErrFuncWith func(Task, interface{}) (interface{}, error)
+
+type Continuation interface {
+	ContinueAction(ContinueAction) ObservableTask
+	ContinueErrAction(ContinueErrAction) ObservableTask
 }
 
 type ObservableTask interface {
@@ -208,109 +224,61 @@ func (t *task) Unsubscribe(o Observer) {
 	t.tracker.Unsubscribe(o)
 }
 
-// Completed returns a completed task in the StatusSuccess state
-func Completed() ObservableTask {
-	doneCh := make(chan struct{}, 1)
-	doneCh <- struct{}{}
-	return &task{
-		status: StatusSuccess,
-		doneCh: doneCh,
-	}
+// OnNext is called by a task that preceeds this current task
+func (t *task) OnNext(next interface{}) {
 }
 
-// FromResult returns a completed task in the StatusSuccess state with the given result
-func FromResult(result interface{}) ObservableTask {
-	doneCh := make(chan struct{}, 1)
-	doneCh <- struct{}{}
-	return &task{
-		result: result,
-		status: StatusSuccess,
-		doneCh: doneCh,
-	}
+func (t *task) OnError(err error) {
 }
 
-// FromError returns a completed task in StatusFaulted state with the given error
-func FromError(err error) ObservableTask {
-	doneCh := make(chan struct{}, 1)
-	doneCh <- struct{}{}
-	return &task{
-		err:    err,
-		status: StatusFaulted,
-		doneCh: doneCh,
-	}
+func (t *task) OnCanceled(err error) {
 }
 
-// Delay calls time.Sleep with the given duration
-func Delay(duration time.Duration, options ...RunOption) ObservableTask {
-	return RunAction(func() {
-		time.Sleep(duration)
-	}, options...)
-}
-
-// RunAction runs the given action function with the supplied RunOptions
-// An Action is a function with no arguments and no returns
-func RunAction(action Action, options ...RunOption) ObservableTask {
-	errFuncWith := func(interface{}) (interface{}, error) {
-		action()
-		return nil, nil
-	}
-	return RunErrFuncWith(errFuncWith, options...)
-}
-
-// RunActionWith runs the given action function with the supplied RunOptions
-// An ActionWith is a function with one interface argument and no returns. The interface
-// argument can be supplied with task.WithState(state) in the options parameter list.
-func RunActionWith(actionWith ActionWith, options ...RunOption) ObservableTask {
-	errFuncWith := func(state interface{}) (interface{}, error) {
-		actionWith(state)
-		return nil, nil
-	}
-	return RunErrFuncWith(errFuncWith, options...)
-}
-
-func RunErrAction(errAction ErrAction, options ...RunOption) ObservableTask {
-	errFuncWith := func(interface{}) (interface{}, error) {
-		return nil, errAction()
-	}
-	return RunErrFuncWith(errFuncWith, options...)
-}
-
-func RunErrActionWith(errActionWith ErrActionWith, options ...RunOption) ObservableTask {
-	errFuncWith := func(state interface{}) (interface{}, error) {
-		return nil, errActionWith(state)
-	}
-	return RunErrFuncWith(errFuncWith, options...)
-}
-
-func RunFunc(f Func, options ...RunOption) ObservableTask {
-	errFuncWith := func(interface{}) (interface{}, error) {
-		return f(), nil
-	}
-	return RunErrFuncWith(errFuncWith, options...)
-}
-
-func RunFuncWith(funcWith FuncWith, options ...RunOption) ObservableTask {
-	errFuncWith := func(state interface{}) (interface{}, error) {
-		return funcWith(state), nil
-	}
-	return RunErrFuncWith(errFuncWith, options...)
-}
-
-func RunErrFunc(f ErrFunc, options ...RunOption) ObservableTask {
-	errFuncWith := func(interface{}) (interface{}, error) {
-		return f()
-	}
-	return RunErrFuncWith(errFuncWith, options...)
-}
-
-func RunErrFuncWith(errFuncWith ErrFuncWith, options ...RunOption) ObservableTask {
-	// create the task
-	t := new(errFuncWith)
-
-	// apply operations
-	for _, opt := range options {
-		opt(t)
-	}
+func (t *task) OnCompleted() {
+	// schedule this task irrespective of its status
+	// we want the delegates with task parameters to handle the errors
 	t.scheduler.Queue(t)
-	return t
+}
+
+func (t *task) ContinueAction(continueAction ContinueAction) ObservableTask {
+	f := func(t Task, state interface{}) (interface{}, error) {
+		continueAction(t)
+		return nil, nil
+	}
+	return t.ContinueErrFuncWith(f)
+}
+
+func (t *task) ContinueErrAction(continueErrAction ContinueErrAction) ObservableTask {
+	f := func(t Task, state interface{}) (interface{}, error) {
+		return nil, continueErrAction(t)
+	}
+	return t.ContinueErrFuncWith(f)
+}
+
+func (t *task) ContinueErrActionWith(continueErrActionWith ContinueErrActionWith) ObservableTask {
+	f := func(t Task, state interface{}) (interface{}, error) {
+		return nil, continueErrActionWith(t, state)
+	}
+	return t.ContinueErrFuncWith(f)
+}
+
+func (t *task) ContinueErrFunc(continueErrFunc ContinueErrFunc) ObservableTask {
+	f := func(t Task, state interface{}) (interface{}, error) {
+		return continueErrFunc(t)
+	}
+	return t.ContinueErrFuncWith(f)
+}
+
+func (t *task) ContinueErrFuncWith(continueErrFuncWith ContinueErrFuncWith, options ...RunOption) ObservableTask {
+	errFuncWith := func(state interface{}) (interface{}, error) {
+		return continueErrFuncWith(t, state)
+	}
+	tsk := new(errFuncWith)
+	tsk.context = t.context
+	tsk.scheduler = t.scheduler
+	for _, option := range options {
+		option(tsk)
+	}
+	t.Subscribe(tsk)
+	return tsk
 }

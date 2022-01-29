@@ -17,6 +17,10 @@ func NewQueueScheduler() QueueScheduler {
 }
 
 func (s *queueScheduler) Queue(t Task) {
+	// do not schedule completed tasks
+	if t.IsCompleted() {
+		return
+	}
 	s.tasks = append(s.tasks, t)
 }
 

@@ -16,6 +16,10 @@ func NewScheduler() Scheduler {
 }
 
 func (s *scheduler) Queue(t Task) {
+	// do not schedule completed tasks
+	if t.IsCompleted() {
+		return
+	}
 	go func(t Task) {
 		t.Execute()
 	}(t)

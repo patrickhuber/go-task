@@ -15,15 +15,16 @@ type whenTask struct {
 
 // WhenAny creates a task that completes when any task in the list completes
 func WhenAny(tasks ...ObservableTask) ObservableTask {
-	return When(1, tasks...)
+	return when(1, tasks...)
 }
 
 // WhenAll creates a task that completes when all tasks in the list complete
 func WhenAll(tasks ...ObservableTask) ObservableTask {
-	return When(len(tasks), tasks...)
+	return when(len(tasks), tasks...)
 }
 
-func When(limit int, tasks ...ObservableTask) ObservableTask {
+// When creates a task that completes when the limit of tasks complete
+func when(limit int, tasks ...ObservableTask) ObservableTask {
 	if len(tasks) == 0 {
 		return Completed()
 	}
