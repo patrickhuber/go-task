@@ -143,6 +143,7 @@ func (t *task) Wait() error {
 	}
 
 	// this allows for the task to be canceled. The main work is done in execute.
+	// when the channel is closed any callers blocked will read nil from t.doneCh
 	select {
 	case <-t.doneCh:
 		return t.Error()

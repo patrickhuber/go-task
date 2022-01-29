@@ -105,6 +105,7 @@ func (t *whenTask) OnCompleted() {
 	}
 
 	// notify that we are done
+	defer close(t.doneCh)
 	t.doneCh <- struct{}{}
 }
 
