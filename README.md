@@ -41,6 +41,16 @@ t := task.RunWith(func(state interface{}){
 t.Wait()
 ```
 
+using goroutines
+
+```golang
+stringChan := make(chan string)
+go func(data string){
+  stringChan <- data
+}("this is data")
+fmt.Println(<-stringChan)
+```
+
 ### timeout a task
 
 ```golang

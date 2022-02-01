@@ -12,13 +12,14 @@ type List interface {
 	Contains(value interface{}) bool
 	IndexOf(value interface{}) int
 	Apply(func(item interface{}))
+	Clear()
 }
 
 type list struct {
 	values []interface{}
 }
 
-func NewList(values []interface{}) List {
+func NewList(values ...interface{}) List {
 	return &list{
 		values: values,
 	}
@@ -71,13 +72,17 @@ func (l *list) Apply(delegate func(item interface{})) {
 	}
 }
 
+func (l *list) Clear() {
+	l.values = nil
+}
+
 type concurrentList struct {
 	innerList List
 	mut       sync.RWMutex
 }
 
-func NewConcurrentList(values []interface{}) List {
-	list := NewList(values)
+func NewConcurrentList(values ...interface{}) List {
+	list := NewList(values...)
 	return &concurrentList{
 		innerList: list,
 	}
@@ -136,4 +141,10 @@ func (l *concurrentList) Apply(delegate func(item interface{})) {
 		delegate(value)
 		l.mut.Unlock()
 	}
+}
+
+func (l *concurrentList) Clear() {
+	l.mut.Lock()
+	defer l.mut.Unlock()
+	l.innerList.Clear()
 }
