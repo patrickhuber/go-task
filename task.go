@@ -26,9 +26,13 @@ type Task interface {
 	Result() interface{}
 	// Error returns the error It will not block and will return immediately.
 	Error() error
+	// IsCompleted returns true if the task is in success, faulted or canceled status
 	IsCompleted() bool
+	// IsFaulted returns true if the task is in the faulted status
 	IsFaulted() bool
+	// IsCanceled returns true if the task is in the canceled status
 	IsCanceled() bool
+	// Status returns the task status
 	Status() TaskStatus
 
 	Continuation
