@@ -2,7 +2,6 @@ package task_test
 
 import (
 	"fmt"
-	"sync/atomic"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
@@ -12,16 +11,22 @@ import (
 
 var _ = Describe("Continuation", func() {
 	It("can subscribe", func() {
-		count := int32(0)
-		t := task.RunAction(func() {
-			atomic.AddInt32(&count, 1)
+		t := task.RunFunc(func() interface{} {
+			return 1
 		})
-		cont := t.ContinueAction(func(t task.Task) {
-			atomic.AddInt32(&count, 1)
+		cont := t.ContinueFunc(func(t task.Task) interface{} {
+			value := t.Result()
+			i, ok := value.(int)
+			if !ok {
+				return nil
+			}
+			return i + 1
 		})
 		err := cont.Wait()
 		Expect(err).To(BeNil())
-		Expect(count).To(Equal(int32(2)))
+		count := cont.Result()
+		Expect(count).ToNot(BeNil())
+		Expect(count).To(Equal(2))
 	})
 	It("can forward task error", func() {
 		err := task.RunErrAction(func() error {

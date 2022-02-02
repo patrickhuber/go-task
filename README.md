@@ -12,23 +12,48 @@ go get github.com/patrickhuber/go-task
 
 ## usage
 
-### execute a simple function 
+```golang
+package main
+
+import (
+	"net/http"
+
+	"github.com/patrickhuber/go-task"
+)
+
+func main() {
+	urls := []string{
+		"http://www.golang.org/",
+		"http://www.google.com/",
+		"http://www.somestupidname.com/",
+	}
+
+	tasks := []task.ObservableTask{}
+	for _, url := range urls {
+		t := task.RunActionWith(func(state interface{}) {
+			url := state.(string)
+			http.Get(url)
+		}, task.WithState(url))
+		tasks = append(tasks, t)
+	}
+
+	task.WhenAll(tasks...).Wait()
+}
+```
+
+Try It [here](https://go.dev/play/p/IwPS8hVA4Rf)
+
+## feature usage
+
+
+### return data
 
 ```golang
 t := task.RunFunc(func() interface{} {
   return 1
 })
 t.Wait()
-```
-
-using goroutines
-
-```golang
-intChan := make(chan int)
-go func(){
-  intChan <- 1
-}()
-<- intChan
+t.Result()
 ```
 
 ### passing in data
@@ -41,24 +66,13 @@ t := task.RunWith(func(state interface{}){
 t.Wait()
 ```
 
-using goroutines
-
-```golang
-stringChan := make(chan string)
-go func(data string){
-  stringChan <- data
-}("this is data")
-fmt.Println(<-stringChan)
-```
-
 ### timeout a task
 
 ```golang
-ctx, _ := context.WithTimeout(context.Background(), time.Millisecond)
 t := task.RunAction(func(){
   ch := make(chan struct{})
   <-ch
-}, task.WithContext(ctx))
+}, task.WithTimeout(time.Millisecond))
 t.Wait()
 ```
 
@@ -84,7 +98,7 @@ t.Wait()
 ### when any tasks
 
 ```golang
-t := task.WhenAll(task.Completed(), task.FromResult(1))
+t := task.WhenAny(task.Completed(), task.FromResult(1))
 t.Wait()
 ```
 
@@ -101,20 +115,21 @@ err := task.WhenAll(tasks).Wait()
 fmt.Println(len(err.(task.AggregateError).Errors()))
 ```
 
-```golang
-var errorChans := [3]chan error
-for i, errChan := range errorChans{
-  errChan = make(chan error)
-  go func(i int){
-    errChan <- fmt.Errorf("%d", i)
-  }(i)
-}
+### continuation
 
-errors := []error{}
-for _, errChan := range errorChans{
-  err := <- errChan
-  errors = append(errors, err)
-}
-// prints 3
-fmt.Println(len(errors))
+```golang
+t := task.RunFunc(func() interface{} {
+  return 1
+})
+cont := t.ContinueFunc(func(t task.Task) interface{} {
+  value := t.Result()
+  i, ok := value.(int)
+  if !ok {
+    return nil
+  }
+  return i + 1
+})
+cont.Wait()
+count := cont.Result()
+fmt.Println(count) // prints 2
 ```
