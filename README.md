@@ -25,7 +25,7 @@ func main() {
 	urls := []string{
 		"http://www.golang.org/",
 		"http://www.google.com/",
-		"http://www.somestupidname.com/",
+		"http://www.yahoo.com",
 	}
 
 	tasks := []task.ObservableTask{}
