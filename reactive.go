@@ -2,6 +2,9 @@ package task
 
 import (
 	"io"
+
+	"github.com/patrickhuber/go-collections/list"
+	concurrent_list "github.com/patrickhuber/go-collections/concurrent/list"
 )
 
 type Observer interface {
@@ -78,7 +81,7 @@ func (s *subscription) Close() error {
 }
 
 type tracker struct {
-	observers List
+	observers list.List
 }
 
 type Tracker interface {
@@ -92,7 +95,7 @@ type Tracker interface {
 
 func NewTracker() Tracker {
 	return &tracker{
-		observers: NewConcurrentList(),
+		observers: concurrent_list.New(),
 	}
 }
 
@@ -135,7 +138,7 @@ func (t *tracker) NotifyCanceled(err error) {
 }
 
 func (t *tracker) notify(action func(o Observer)) {
-	t.observers.Apply(func(item interface{}) {
+	t.observers.ForEach(func(item interface{}) {
 		if o, exists := item.(Observer); exists {
 			action(o)
 		}
