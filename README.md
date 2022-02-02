@@ -41,7 +41,7 @@ func main() {
 }
 ```
 
-Try It [here](https://go.dev/play/p/IwPS8hVA4Rf)
+Try It [here](https://go.dev/play/p/Ur4z-KBabvV)
 
 ## feature usage
 
