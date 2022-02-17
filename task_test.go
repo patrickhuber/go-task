@@ -36,7 +36,10 @@ var _ = Describe("Task", func() {
 		t := task.RunAction(func() {
 			ch := make(chan struct{})
 			defer close(ch)
-			<-ch
+			select {
+			case <-ch:
+			case <-time.After(time.Second):
+			}
 		}, task.WithContext(ctx))
 		Expect(t.Wait()).ToNot(BeNil())
 	})
@@ -44,7 +47,11 @@ var _ = Describe("Task", func() {
 		ctx, cancel := context.WithCancel(context.Background())
 		t := task.RunAction(func() {
 			ch := make(chan struct{})
-			<-ch
+			defer close(ch)
+			select {
+			case <-ch:
+			case <-time.After(time.Second):
+			}
 		}, task.WithContext(ctx))
 		cancel()
 		Expect(t.Wait()).ToNot(BeNil())

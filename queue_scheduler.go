@@ -38,7 +38,7 @@ func (s *queueScheduler) Dequeue() bool {
 
 	// execute the task
 	go func(t Task) {
-		t.Execute()
+		t.Start()
 	}(t)
 
 	// execute the blocking call of the task

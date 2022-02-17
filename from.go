@@ -1,7 +1,7 @@
 package task
 
 // Completed returns a completed task in the StatusSuccess state
-func Completed() ObservableTask {
+func Completed() Task {
 	doneCh := make(chan struct{}, 1)
 	doneCh <- struct{}{}
 	close(doneCh)
@@ -12,7 +12,7 @@ func Completed() ObservableTask {
 }
 
 // FromResult returns a completed task in the StatusSuccess state with the given result
-func FromResult(result interface{}) ObservableTask {
+func FromResult(result interface{}) Task {
 	doneCh := make(chan struct{}, 1)
 	doneCh <- struct{}{}
 	close(doneCh)
@@ -24,7 +24,7 @@ func FromResult(result interface{}) ObservableTask {
 }
 
 // FromError returns a completed task in StatusFaulted state with the given error
-func FromError(err error) ObservableTask {
+func FromError(err error) Task {
 	doneCh := make(chan struct{}, 1)
 	doneCh <- struct{}{}
 	close(doneCh)
@@ -33,4 +33,12 @@ func FromError(err error) ObservableTask {
 		status: StatusFaulted,
 		doneCh: doneCh,
 	}
+}
+
+// FromAction creates an unstarted task from the given action
+func FromAction(action Action) Task {
+	return new(func(i interface{}) (interface{}, error) {
+		action()
+		return nil, nil
+	})
 }

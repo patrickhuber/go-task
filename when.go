@@ -7,22 +7,22 @@ import (
 
 type whenTask struct {
 	task
-	tasks     []ObservableTask
+	tasks     []Task
 	remaining int32
 }
 
 // WhenAny creates a task that completes when any task in the list completes
-func WhenAny(tasks ...ObservableTask) ObservableTask {
+func WhenAny(tasks ...Task) Task {
 	return when(1, tasks...)
 }
 
 // WhenAll creates a task that completes when all tasks in the list complete
-func WhenAll(tasks ...ObservableTask) ObservableTask {
+func WhenAll(tasks ...Task) Task {
 	return when(len(tasks), tasks...)
 }
 
 // When creates a task that completes when the limit of tasks complete
-func when(limit int, tasks ...ObservableTask) ObservableTask {
+func when(limit int, tasks ...Task) Task {
 	if len(tasks) == 0 {
 		return Completed()
 	}
@@ -100,9 +100,8 @@ func (t *whenTask) OnCompleted() {
 		t.notifyNext(t.Result())
 	}
 
-	// notify that we are done
+	// notify that we are done by closing the channel
 	defer close(t.doneCh)
-	t.doneCh <- struct{}{}
 }
 
 func (t *whenTask) OnError(err error) {

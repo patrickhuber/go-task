@@ -28,7 +28,7 @@ func main() {
 		"http://www.yahoo.com",
 	}
 
-	tasks := []task.ObservableTask{}
+	tasks := []task.Task{}
 	for _, url := range urls {
 		t := task.RunActionWith(func(state interface{}) {
 			url := state.(string)
@@ -70,8 +70,12 @@ t.Wait()
 
 ```golang
 t := task.RunAction(func(){
-  ch := make(chan struct{})
-  <-ch
+  	ch := make(chan struct{})
+  	defer close(ch)
+	select {
+		case <-ch:
+		case <-time.After(time.Second):
+	}
 }, task.WithTimeout(time.Millisecond))
 t.Wait()
 ```
@@ -81,8 +85,12 @@ t.Wait()
 ```golang
 ctx, cancel := context.WithCancel(context.Background())
 t := task.RunAction(func() {
-  ch := make(chan struct{})
-  <-ch
+  	ch := make(chan struct{})
+  	defer close(ch)
+	select {
+		case <-ch:
+		case <-time.After(time.Second):
+	}
 }, task.WithContext(ctx))
 cancel()
 err := t.Wait() // error contains context cancellation error
@@ -105,7 +113,7 @@ t.Wait()
 ### aggregate errors
 
 ```golang
-tasks := []task.ObservableTask{}
+tasks := []task.Task{}
 for i := 0; i < 3; i++{
   task.FromError(fmt.Errorf("%d",d))
 }

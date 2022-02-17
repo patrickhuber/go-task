@@ -18,8 +18,8 @@ const (
 
 // Task represents a unit of work.
 type Task interface {
-	// Execute executes the task. This is called by the scheduler to start the task.
-	Execute()
+	// Start executes the task. This is called by the scheduler to start the task.
+	Start()
 	// Wait will return immediately if the task is complete. It will block if the task is running.
 	Wait() error
 	// Result returns the result. It will not block and will return immediately.
@@ -32,10 +32,14 @@ type Task interface {
 	IsFaulted() bool
 	// IsCanceled returns true if the task is in the canceled status
 	IsCanceled() bool
+	// IsSuccess returns tru if the task was run to completion successfully
+	IsSuccess() bool
 	// Status returns the task status
 	Status() TaskStatus
 
 	Continuation
+	Observer
+	Observable
 }
 
 type ContinueAction func(Task)
@@ -48,19 +52,14 @@ type ContinueErrFunc func(Task) (interface{}, error)
 type ContinueErrFuncWith func(Task, interface{}) (interface{}, error)
 
 type Continuation interface {
-	ContinueAction(ContinueAction) ObservableTask
-	ContinueActionWith(ContinueActionWith) ObservableTask
-	ContinueErrActionWith(ContinueErrActionWith) ObservableTask
-	ContinueErrAction(ContinueErrAction) ObservableTask
-	ContinueFunc(ContinueFunc) ObservableTask
-	ContinueFuncWith(ContinueFuncWith) ObservableTask
-	ContinueErrFunc(ContinueErrFunc) ObservableTask
-	ContinueErrFuncWith(ContinueErrFuncWith) ObservableTask
-}
-
-type ObservableTask interface {
-	Observable
-	Task
+	ContinueAction(ContinueAction) Task
+	ContinueActionWith(ContinueActionWith) Task
+	ContinueErrActionWith(ContinueErrActionWith) Task
+	ContinueErrAction(ContinueErrAction) Task
+	ContinueFunc(ContinueFunc) Task
+	ContinueFuncWith(ContinueFuncWith) Task
+	ContinueErrFunc(ContinueErrFunc) Task
+	ContinueErrFuncWith(ContinueErrFuncWith) Task
 }
 
 type task struct {
@@ -115,7 +114,7 @@ func WithState(state interface{}) RunOption {
 	}
 }
 
-func (t *task) Execute() {
+func (t *task) Start() {
 	t.executeOnce.Do(t.execute)
 }
 
@@ -125,7 +124,7 @@ func (t *task) execute() {
 		return
 	}
 
-	// cleanup the channel after execution completes
+	// cleanup the channel after execution completes, this will activate any select statements
 	defer close(t.doneCh)
 
 	// execute the delegate
@@ -141,7 +140,6 @@ func (t *task) execute() {
 		t.setStatus(StatusSuccess)
 		t.notifyNext(result)
 	}
-	t.doneCh <- struct{}{}
 }
 
 func (t *task) Wait() error {
@@ -220,6 +218,10 @@ func (t *task) IsFaulted() bool {
 	return t.Status() == StatusFaulted
 }
 
+func (t *task) IsSuccess() bool {
+	return t.Status() == StatusSuccess
+}
+
 func (t *task) Status() TaskStatus {
 	t.mutex.RLock()
 	defer t.mutex.RUnlock()
@@ -253,6 +255,7 @@ func (t *task) OnCanceled(err error) {
 }
 
 func (t *task) OnCompleted() {
+	// close the tracker so this task no longer receives notifications
 	t.tracker.Close()
 
 	// schedule this task irrespective of its status
@@ -260,7 +263,7 @@ func (t *task) OnCompleted() {
 	t.scheduler.Queue(t)
 }
 
-func (t *task) ContinueAction(continueAction ContinueAction) ObservableTask {
+func (t *task) ContinueAction(continueAction ContinueAction) Task {
 	f := func(t Task, state interface{}) (interface{}, error) {
 		continueAction(t)
 		return nil, nil
@@ -268,7 +271,7 @@ func (t *task) ContinueAction(continueAction ContinueAction) ObservableTask {
 	return t.ContinueErrFuncWith(f)
 }
 
-func (t *task) ContinueActionWith(continueActionWith ContinueActionWith) ObservableTask {
+func (t *task) ContinueActionWith(continueActionWith ContinueActionWith) Task {
 	f := func(t Task, state interface{}) (interface{}, error) {
 		continueActionWith(t, state)
 		return nil, nil
@@ -276,42 +279,42 @@ func (t *task) ContinueActionWith(continueActionWith ContinueActionWith) Observa
 	return t.ContinueErrFuncWith(f)
 }
 
-func (t *task) ContinueErrAction(continueErrAction ContinueErrAction) ObservableTask {
+func (t *task) ContinueErrAction(continueErrAction ContinueErrAction) Task {
 	f := func(t Task, state interface{}) (interface{}, error) {
 		return nil, continueErrAction(t)
 	}
 	return t.ContinueErrFuncWith(f)
 }
 
-func (t *task) ContinueErrActionWith(continueErrActionWith ContinueErrActionWith) ObservableTask {
+func (t *task) ContinueErrActionWith(continueErrActionWith ContinueErrActionWith) Task {
 	f := func(t Task, state interface{}) (interface{}, error) {
 		return nil, continueErrActionWith(t, state)
 	}
 	return t.ContinueErrFuncWith(f)
 }
 
-func (t *task) ContinueFunc(continueFunc ContinueFunc) ObservableTask {
+func (t *task) ContinueFunc(continueFunc ContinueFunc) Task {
 	f := func(t Task, state interface{}) (interface{}, error) {
 		return continueFunc(t), nil
 	}
 	return t.ContinueErrFuncWith(f)
 }
 
-func (t *task) ContinueFuncWith(continueFuncWith ContinueFuncWith) ObservableTask {
+func (t *task) ContinueFuncWith(continueFuncWith ContinueFuncWith) Task {
 	f := func(t Task, state interface{}) (interface{}, error) {
 		return continueFuncWith(t, state), nil
 	}
 	return t.ContinueErrFuncWith(f)
 }
 
-func (t *task) ContinueErrFunc(continueErrFunc ContinueErrFunc) ObservableTask {
+func (t *task) ContinueErrFunc(continueErrFunc ContinueErrFunc) Task {
 	f := func(t Task, state interface{}) (interface{}, error) {
 		return continueErrFunc(t)
 	}
 	return t.ContinueErrFuncWith(f)
 }
 
-func (t *task) ContinueErrFuncWith(continueErrFuncWith ContinueErrFuncWith) ObservableTask {
+func (t *task) ContinueErrFuncWith(continueErrFuncWith ContinueErrFuncWith) Task {
 	errFuncWith := func(state interface{}) (interface{}, error) {
 		return continueErrFuncWith(t, state)
 	}

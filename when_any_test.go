@@ -1,6 +1,8 @@
 package task_test
 
 import (
+	"time"
+
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	"github.com/patrickhuber/go-task"
@@ -11,7 +13,11 @@ var _ = Describe("WhenAny", func() {
 		scheduler := task.NewQueueScheduler()
 		blocking := task.RunErrFuncWith(func(i interface{}) (interface{}, error) {
 			ch := make(chan struct{})
-			<-ch
+			defer close(ch)
+			select {
+			case <-ch:
+			case <-time.After(time.Second):
+			}
 			return nil, nil
 		}, task.WithScheduler(scheduler))
 		completed := task.Completed()

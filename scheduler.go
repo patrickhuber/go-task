@@ -21,7 +21,7 @@ func (s *scheduler) Queue(t Task) {
 		return
 	}
 	go func(t Task) {
-		t.Execute()
+		t.Start()
 	}(t)
 	go func(t Task) {
 		t.Wait()

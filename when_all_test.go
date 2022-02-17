@@ -12,7 +12,7 @@ import (
 var _ = Describe("WhenAll", func() {
 	It("waits until all tasks complete", func() {
 		itemCount := 3
-		tasks := []task.ObservableTask{}
+		tasks := []task.Task{}
 		scheduler := task.NewQueueScheduler()
 		for i := 0; i < itemCount; i++ {
 			t := task.RunFuncWith(func(state interface{}) interface{} {
@@ -42,7 +42,10 @@ var _ = Describe("WhenAll", func() {
 		cancel := task.RunAction(func() {
 			ch := make(chan struct{})
 			defer close(ch)
-			<-ch
+			select {
+			case <-ch:
+			case <-time.After(time.Second):
+			}
 		}, task.WithScheduler(scheduler),
 			task.WithTimeout(time.Millisecond*10))
 
@@ -60,7 +63,7 @@ var _ = Describe("WhenAll", func() {
 		Expect(t.Wait()).To(BeNil())
 	})
 	It("returns aggregate errors", func() {
-		tasks := []task.ObservableTask{}
+		tasks := []task.Task{}
 		for i := 0; i < 3; i++ {
 			t := task.FromError(fmt.Errorf("error %d", i))
 			tasks = append(tasks, t)
