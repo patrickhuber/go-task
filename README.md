@@ -115,7 +115,8 @@ t.Wait()
 ```golang
 tasks := []task.Task{}
 for i := 0; i < 3; i++{
-  task.FromError(fmt.Errorf("%d",d))
+  t:= task.FromError(fmt.Errorf("%d",d))
+  tasks = append(tasks, t)
 }
 err := task.WhenAll(tasks).Wait()
 
